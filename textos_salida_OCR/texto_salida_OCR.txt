@@ -1,0 +1,897 @@
+--- Página 1 ---
+Using Chinese Glyphs for Named Entity Recognition
+
+Arijit Sehanobish* '
+Yale University
+arijit.sehanobish@ yale.edu
+
+Abstract
+
+Most Named Entity Recognition (NER) systems use addi-
+tional features like part-of-speech (POS) tags, shallow pars-
+ing, gazetteers, etc. Adding these external features to NER
+systems have been shown to have a positive impact. How-
+ever, creating gazetteers or taggers can take a lot of time and
+may require extensive data cleaning. In this work instead of
+using these traditional features we use lexicographic features
+of Chinese characters. Chinese characters are composed of
+graphical components called radicals and these components
+often have some semantic indicators. We propose CNN based
+models that incorporate this semantic information and use
+them for NER. Our models show an improvement over the
+baseline BERT-BiLSTM-CRF model. We present one of the
+first studies on Chinese OntoNotes v5.0 and show an im-
+provement of +.64 Fl score over the baseline. We present
+a state-of-the-art (SOTA) Fl score of 71.81 on the Weibo
+dataset, show a competitive improvement of +0.72 over
+baseline on the ResumeNER dataset, and a SOTA FI score
+of 96.49 on the MSRA dataset.
+
+1 Introduction
+
+Augmenting named entity recognition (NER) systems with
+additional features like gazetteers, bag of words or char-
+acter level information has been commonplace like Sang
+and Meulder (2003), Collobert et al. (2011) and Chiu and
+Nichols (2016). Over the years these added features have
+shown to improve the NER systems. We follow this ap-
+proach to the Chinese NER task. Chinese is a logographic
+language and many Chinese characters have evolved from
+pictures, thus we incorporate the semantic information from
+the pictures of the Chinese characters which can be used
+as an added feature for Chinese NER systems. Several au-
+thors Shi et al. (2015), Li et al. (2015), Sun et al. (2014) and
+Meng et al. (2019) managed to use the radical representa-
+tions successfully in a wide range of natural language under-
+standing (NLU) tasks. However using these images for NLU
+have sometimes proved to be a challenge. For example Liu
+et al. (2017), and Zhang and LeCun (2017) work shows in-
+consistent results and some even yield negative results (Dai
+
+“equal contribution
+* Work done during SCALE program at JHU
+
+Chan Hee Song* ¢
+University of Notre Dame
+csong! @nd.edu
+
+and Cai 2017). Furthermore, there has not been a lot of work
+in using glyphs particularly for NER. Only recently, Meng
+et al. (2019) presented a complex Glyph reinforced model
+that concatenates glyph embeddings with BERT (Devlin et
+al. 2018) embeddings. In this paper, we present a new kind
+of glyph-augmented architecture that is easier to implement
+and train, more robust and requires less data. We show that
+our models have a significant improvement over our base-
+line on two datasets, Chinese OntoNotes v5.0 (Pradhan and
+Ramshaw 2017) and Weibo (Peng and Dredze 2015).
+
+We approach the problem of incorporating Chinese
+glyphs as an image classification problem and present two
+CNNs which we call “strided” and “GLYNN” inspired from
+computer vision. We treat this encoding problem purely in
+terms of computer vision, i.e. to extract “meaningful” fea-
+tures from the image, instead of a specialized CNN that en-
+capsulates the subtle radicals. Both CNNs are used to en-
+code the glyphs and these encoded images are then used as
+an added feature for our NER system. We also present an
+autoencoder architecture to pretrain GLYNN and compare
+the results. Due to treating the problem as an image classi-
+fication problem, our models are easier to train and imple-
+ment. Since the OntoNotes v5.0 and Weibo datasets have a
+significant number of non-Chinese characters in them, we
+also show our model is robust by conducting a robustness
+test of our systems by throwing in the pictures of the non-
+Chinese characters as well pictures of English alphabets and
+show that it still beats the baseline model. English alpha-
+bets unlike Chinese have no semantic information so we can
+think of these added pictures as “noise”. Furthermore, unlike
+Meng et al. (2019) who used extensive dataset of Chinese
+glyphs gathered from different sources, we use only about
+4500 grayscale 64 x 64 Chinese characters in Hei Ti font.
+Hei Ti font, similar to sans-serif, is widely used and is easy
+to gather glyph information. This enables us to use a lot less
+data to train our model. In this paper, we found that all our
+models are an improvement over the baseline and achieve
+state of the art Fl score on the Weibo dataset. Our code can
+be found in https://github.com/arijitthegame/BERT-CNN-
+models. The main strength of our model is as follows:
+
+e Easy to implement and train
+
+e Robust to non-Chinese languages in the dataset
+
+--- Página 2 ---
+@ Requires less amount of glyph data to train
+
+2 Architecture of our GLYPH models
+
+BERT is the state of the art language model introduced by
+Devlin et al. (2018). BERT is a transformer based model
+which is trained on masked word prediction and next sen-
+tence prediction tasks and is trained on Wikipedia data and
+a large book corpus. We use the Chinese BERT base which
+is released by Google and is publicly available on Google
+Github. We then combine BERT with a popular used ar-
+chitecture in NER, BiLSTM-CRF as in Huang, Xu and
+Yu (2015), Ma and Hovy (2016), Chiu and Nichols (2016)
+and Zhang and Yang (2018).
+
+Our model (figure 1) consists of the following parts: pre-
+trained BERT embeddings and the (pretrained) CNN embed-
+dings. We concatenate the last four layers of BERT and the
+CNN vectors which are our new “character” embeddings.
+We then feed these character embeddings to the BiLSTM
+layer which are finally decoded via a CRF layer. The CNN-
+LSTM-CRF is then being trained end-to-end while we keep
+BERT frozen. Thus we try to take advantage of BERT’s large
+pre-scale training and the information from Chinese glyphs
+encoded by our CNN’s.
+
+CRF layer
+
+Glyph - BERT emb
+
+BERT emb
+
+Pe wm ORE
+
+Figure 1: Architecture of our Glyph Models
+
+The selection of the CNN’s are primarily motivated by
+problems in computer vision. The convolution layers are
+the key in extracting meaningful features and one needs at
+least two to extract meaningful features. Batch normaliza-
+tion (Ioffe and Szegedy 2015) and layer normalizations (Ba,
+Kiros and Hinton 2016) are generally used to accelerate
+training. To vindicate our choice of these CNN’s we applied
+them to “Fashion MNIST” dataset and we got around 93%
+accuracy.
+
+2.1 Obtaining Glyph information
+
+Before giving a detailed description of the CNNs used to
+extract glyph features we want to explain how the model is
+trained. All the datasets used in this paper are character tok-
+enized and in IOB or BIOES format. We construct a dictio-
+
+nary of 4200 Chinese characters where the key is the UTF-8
+codepoint and the value is the numpy array of pixels. A char-
+acter in each line is one of the following types:
+
+e Chinese character and one of the 4200 characters we used:
+We look up its image via our dictionary using its UTF-8
+codepoint and pass the image through our CNN (strided
+or GLYNN, depending on the mode)).
+
+Out of vocabulary Chinese characters (there are about a
+hundred of them across various datasets): Since we dont
+have that characters picture we use a black image, i.e.
+64764 pixel of all 1’s and then pass the black image
+through the CNN.
+
+Non Chinese character: we use a white image, i.e. 64764
+pixel of all Os and pass it through our CNN.
+
+In each of the above cases, we then get the BERT output
+of the character and concatenate the BERT output with the
+output of the CNN. These concatenated vectors are our char-
+acter representations.
+
+2.2 Strided CNN
+
+This CNN is inspired from the work of Su and Lee (2017)
+who used 5 convolution layers. They used their CNN for
+Chinese word analogy problems. We did an ablation study
+and adapted a smaller CNN for our model. Figure 2 is the
+picture of our strided CNN. This consists of 4 2D convo-
+lution layers with strides 2, filter size of 64, kernel size of
+3 and activation leaky ReLU. Then we have a Flatten layer
+and a Dense layer of output dimension 64. Furthermore we
+normalize the final output by using layer normalization as
+introduced by Ba, Kiros, and Hinton (2016).
+
+ine tal
+
+Flatten
+
+Figure 2: Strided CNN encoder
+
+2.3 GLYNN CNN
+
+In this subsection we describe another CNN which we call
+“Glynn” to encode the glyphs. The idea for this CNN comes
+purely from image classification tasks. The convolution lay-
+ers are the most important component of CNN and one needs
+at least 2 layers to capture details of an image. Batch normal-
+ization (Ioffe and Szegedy 2015) is used to speed up train-
+ing and the dropout layers are used to prevent overfitting and
+the maxpooling layers are used to reduce the computational
+
+--- Página 3 ---
+» Pomeg
+
+BatchNormalization
+ry
+
+Flatten
+
+t
+
+r
+
+Dropout
+A
+
+|
+
+BatchNormalization
+
+- —_
+: rs
+
+Dropout
+4
+
+BatchNormalization
+
+|
+
+Figure 3: GLYNN CNN Encoder
+
+complexity of the network. Figure 3 is the picture of our
+CNN.
+
+We use filter size of 32, kernel size of 3 and
+padding=‘same’ in both the convolution layers, while we
+use sigmoid activation and strides=(2, 2) for our first convo-
+lution layer and ReLU activation and strides=(1,1) for the
+second convolution layer. For both the maxpooling layers we
+use a pool size of 2. And finally we use two dropout layers.
+The output dimension of the CNN is 256. We pretrain the
+CNN using an autoencoder shown in figure 4.
+
+Convolution Pooling Encoding Unpooling Deconvolution
+
+(}- Demy ay-Ol-(
+
+Original Feature Decoding Reconstructed
+Image extraction Image
+
+Figure 4: Autoencoder
+
+2.4 Autoencoder
+
+We also employ autoencoder (Zhou et al. 2015) to pre-
+train the CNN. The main purpose of the autoencoder is di-
+
+mensionality reduction, i.e. the autoencoder encourages the
+CNN to extract high level features without employing multi-
+ple convolution layers like the strided CNN. A deep autoen-
+coder architecture is a multi-layer neural network that tries
+to reconstruct it’s input. The architecture therefore consists
+of a sequence of N encoder layers followed by a sequence of
+N decoder layers. Let 9 := {9*,1 <i < N} be the param-
+eters of each layer, where each ©? can be further written as
+6 = {W?, bt, Wi, 61}, where W!,b! are the weights and
+the biases of the i-encoder layer and Wj, b', are the weights
+and the biases of the i-decoder layer. If z € R@ be an input,
+then the encoder-decoder architecture can be formulated by
+the following series of equations.
+
+h® := 2,
+hi = fi) = s(Wah 4b),
+hp :=h",
+
+hh = filhi*1) := si(Wihi? + 01)
+
+where f? and fj are the encoding and decoding functions
+and s’, (resp. s’,) are elementwise non-linear functions and
+hi € R¢. The training objective is to find a set of parameters
+e°t := {W,, b., Wa, ba} which will minimize the recon-
+struction error over all points in the dataset 9, i.e.
+
+1
+Li= Di Se Ile = hi(aylB (2)
+red
+and || - || is the usual L?-norm in R¢.
+
+We train the autoencoder for 200 epochs and we use
+RMSprop as our optimizer.
+
+In the GLYNN CNN we take the encoder part of the au-
+toencoder,
+
+3 Related Works
+
+Our work follows the mainstream approach to named en-
+tity recognition. Mainstream neural approach predates to
+2003 when Hammerton (2003) used Long Short-Term Mem-
+ory for NER, achieving just above average for English Fl
+scores and improvement for German NER. Hochreiter and
+Schmidhuber (1997) presented Long Short-Term Memory
+(LSTM), and it was expanded by Gers, Schmidhuber and
+Cummings (2000), and reached its current form by Graves
+and Schmidhuber (2005). LSTM is increasing in its use
+with NER problems over the past 2 decades. Recent works
+in NER follows this approach, mainly using BiLSTM-
+CRF architecture. Bi-LSTM-CREF architecture was first pro-
+posed by Huang, Xu and Yu (2015), and has been widely
+studied and augmented. Chiu and Nichols (2016) and Ma
+and Hovy (2016) augmented LSTM-CRF architecture with
+character-level convolutional neural network to add an addi-
+tional features to the architecture. Instead of applying convo-
+lutional neural network to the text, we apply it to the glyphs
+to augment our Bi-LSTM-CRF.
+
+Recently, transfer learning architectures has shown sig-
+nificant improvement in various natural language process-
+ing tasks such as question answering, natural language un-
+
+--- Página 4 ---
+derstanding, machine translation and natural language in-
+ference. Devlin et al. (2018) uses stacked bi-directional
+transformer layers called BERT that is trained on masked
+word prediction and next sentence prediction tasks. BERT
+is trained on over 3,300M words mostly gathered from
+Wikipedia. By employing a task-specific final output layer,
+BERT can be tuned to many different natural language pro-
+cessing tasks. In this work, we apply BERT to NER and
+use BiLSTM-CREF as the output layer of BERT-CNN. Our
+approach presents an architecture that doesn’t require a
+dataset-specific architecture and feature engineering.
+
+In the recent years there has been a lot of work to use
+Chinese glyphs as an added feature for various language un-
+derstanding tasks. Our work is similar to Meng et al (2019)
+but differs in many aspects. Unlike Meng et al, who uses
+ensemble of glyph images from different time periods and
+writers, which is often hard to collect. Instead we use only
+about 4500 grayscale 64 x 64 Chinese characters in Hei Ti
+font. Hei Ti font, which is similar to sans-serif, is widely
+used and easy to collect glyph data. These are all the Chinese
+characters found in Chinese BERT vocabulary. Even though
+there are over 20, 000 CJK characters, we only have about a
+hundred of out-of-vocabulary characters in OntoNotes v5.0
+and Weibo. So that allowed us to use considerable less data
+than Meng et al. (2019). Another major difference between
+our approach and all the aforementioned authors in the in-
+troduction is that our CNN’s are agnostic to the subtleties
+of Chinese characters and we treat this encoding problem
+with computer vision ideas and extract “meaningful” fea-
+tures from the image, instead of having a specialized CNN
+that encapsulates the subtle radicals. Both Su and Lee (2017)
+and Meng et al (2019) use autoencoders to pretrain their
+CNN. Su and Lee (2017) pretrain the CNN by freezing some
+layers while Meng et al (2019) pretrain the CNN with the
+objective of recovering an “image id” while we follow the
+approach of jointly training all layers of the CNN (Zhou et
+al. 2015) with the global objective of reconstructing the im-
+age. We also employ pretraining to GLYNN and shows that
+it has a performance gain compared to not pretraining. An-
+other difference between our architecture and the GLYCE
+model (Meng et al. 2019) is that we use a BiLSTM instead
+of a transformer to encode the BERT + Glyph Embeddings.
+Overall, our model is a very robust and easy to train model
+that uses very little data for augmenting the glyph features
+and successfully marry techniques from computer vision and
+state of the art language models.
+
+4 Experimental results
+4.1 Datasets used
+
+We used Chinese OntoNotes v5.0 dataset compiled for
+CoNLL-2013 shared task (Pradhan and Ramshaw 2017) and
+follow the standard train/dev/test split as presented in Prad-
+han et al. (2013). OntoNotes v5.0 is composed of 18 differ-
+ent tag sets, ART, DAT, EVT, FAC, GPE, LAW, LNG, LOC,
+MON, NRP, NUM, ORD, ORG, PCT, PER, PRD, QTY
+and TIM. We chose OntoNotes v5.0 due to it being com-
+prehensive of previous OntoNotes releases. OntoNotes v5.0
+contains an extra genre, telephone communications, which
+
+Train Dev Test
+OntoNotes v5.0 | tok | 1.2M 178K 149K
+ent 65K 9401 7785
+sent 37K 6217 4293
+Weibo tok | 1855 379 405
+
+ent 957 153 211
+
+sent 1350 270 270
+
+ResumeNER tok 124.1k | 13.9k | 15.1k
+ent 13.4k 1497 1630
+sent 3.8k 0.46k | 0.48k
+
+MSRA tok | 2169.9k - 172.6k
+ent 75k - 6.1k
+sent 46.4k - 4.4k
+
+Table |: Statistics of the OntoNotes v5.0, Weibo, MSRA
+and ResumeNER dataset, tok stands for number of tokens
+in each split, ent stands for number of annotated entities in
+each split and sent stands for number of sentences in each
+split
+
+makes the dataset more representative of the real world. We
+also use Weibo dataset (Peng and Dredze 2015) and Re-
+sumeNER dataset (Zhang and Yang 2018) which has 4 en-
+tity types: PER, ORG, GPE and LOC and 8 entity types:
+CONT, EDU, LOC, NAME, ORG, PRO, RACE and TITLE
+respectively. We use both named entity mention and nomi-
+nal mentions for the Weibo dataset as well as Weibo with just
+the named entity mention which we refer to by Weibo NAM.
+MSRA dataset has 3 entity types PER, LOC and ORG. Since
+MSRA do not have a dev set, we take 10% of the test set as
+our dev set. The statistics of datasets are shown in Table |.
+We use the train set to train the model, the dev set for vali-
+dation and the test set for testing. All the results are results
+from the test set.
+
+4.2 NER results on OntoNotes v5.0, Weibo and
+ResumeNER
+
+To make a proper comparison, we run our vanilla BERT-
+LSTM-CRF models 10 times on OntoNotes v5.0 and 20
+times on Weibo NAM and 40 times on Weibo to establish
+a baseline. For better understanding of our results, in Ta-
+ble 2 we give a complete list of all hyperparameters used in
+running these experiments.
+
+We ran 10 trials for 30 epochs for each of Glynn CNN
+(default and higher dropout) and strided CNN on Chinese
+OntoNotes v5.0. We also compare the statistical significance
+of our results over the baseline by performing a 2-sample t-
+test. We call a result statistically significant if the p-value is
+less than .05. We report our scores in Table 3.
+
+Using the FI scores obtained by the Glynn CNN (dropout
+.9) and the strided CNN, we perform the 2- sample t-test and
+obtain a p-value of < .001. Thus we see that strided CNN
+is a significant improvement over both the BERT baseline
+and the GLYNN. But interestingly both the GLYNN models
+outperform strided on the dev sets. Finally we note that it is
+not a huge surprise that the gains are low on OntoNotes v5.0
+
+--- Página 5 ---
+Hyperparameters
+
+Number of BiLSTM lay- | 1
+
+Hidden_size_LSTM 296
+
+clip_grad_norm 1
+
+learning rate scheduler cosine decay & first
+decay steps = 1000
+
+BERT layers used —4,-3, -2,-1
+
+Default dropout in .3, «0 TeSp.
+
+GLYNN CNN
+
+training epochs 30
+
+mini batch size 8
+
+Table 2: Default hyperparameters used in the experiments
+
+Models
+BERT-BiLSTM-CRF (baseline)
+GLYNN
+GLYNN +dropout .5
+strided
+
+Che et al. (2013)
+appu et al. (2017)
+Xu et al. (2017)
+Nosirova et al. (2019) 72.12 N/A
+
+Table 3: Results on OntoNotes v5.0
+
+as the dataset is big and we used a small amount of data to
+augment the system.
+
+Since the Weibo dataset is smaller and is noisier than
+OntoNotes v5.0, we ran vanilla BERT-BiLSTM-CRF 20
+times and 40 times respectively on Weibo NAM and the
+Weibo dataset to establish a baseline. We ran 20 trials for 30
+epochs for each of Glynn CNN (default and higher dropout)
+and strided CNN on Weibo. We also calculate the p-value
+between our CNN’s and the baseline BERT to see if our re-
+sults are statistically significant. Table 4 gives us a summary
+of our results on Weibo and we compare our results with
+He and Sun (2017). Table 4 shows that Weibo experiment
+results from both CNNs are statistically significant than the
+vanilla BERT. However p- value between strided CNN and
+GLYNN is .71, which shows that their performance on aver-
+age is statistically the same.
+
+Models | Avg | Stddev | Max | p-value
+BERT-BiLSTM-CRF (baseline) | 69.9 | 14 | 71.8 | N/A
+GLYNN 7144 1.48 73.9 003
+
+GLYNN + dropout .5 71.34 1.2 73.36 | .003
+strided 71.34 1.48 73.35 005
+
+He and Xu (2017)
+Zhu and Wang (2019) 55.38 N/A N/A N/A
+
+Table 4: Results on Weibo NAM
+
+Table 5 shows our results on the full Weibo dataset. Even
+though strided CNN did not show any improvement, we
+made significant gains with the GLYNN CNN over the base-
+
+line and set anew SOTA FI score. Even though strided CNN
+shows improvement over the baseline on other datasets and
+the dev sets, we do not understand why it underperforms in
+this case. We would like to investigate this problem further.
+
+GLYNN + dropout .5
+strided
+
+Table 5: Results on Full Weibo
+
+Table 6 shows our results on the ResumeNER dataset. We
+ran our experiments 15 times and we hope a grid search will
+make our results closer to SOTA scores reported by Meng et
+al. (2019). We would also like to point out that we trained
+our models for 20 epochs which seemed to give the best re-
+sults.
+
+Models | Avg | Stddev | Max | p-value
+BERT-BiLSTM-CRF (baseline) | 94.92 51 95.72 N/A
+GLYNN 95.61 62 96.49 02
+Meng et al. (2019) N/A N/A | 96.54 | N/A
+Zhang and Yang (2018) | N/A N/A | 94.46 | N/A
+
+Table 6: Results on ResumeNER
+
+Table 7 shows our results on MSRA. We ran 10 trials for
+each experiment for 30 epochs.
+
+Models | Avg | Stddev | Max | p-value
+BERT-BiLSTM-CRF (baseline) | 95.05 il 95.3 N/A
+GLYNN 95.07 18 96.49 8
+Meng et al. (2019) N/A N/A | 99.54 N/A
+Zhang and Yang (2018) | N/A N/A | 93.18 | N/A
+
+Table 7: Results on MSRA
+
+4.3 Robustness test
+
+4 of Chinese OntoNotes v5.0 and 4 of Weibo characters are
+not Chinese. So a natural question would be: what if we add
+the pictures of the other non-Chinese characters as well. To
+test the performance of the system, we added in an additional
+3000 pictures. These are the pictures of all non CJK charac-
+ters found in the Chinese BERT vocabulary. Of course, a
+picture of an English character has no semantic meaning so
+adding these characters can be thought as a robustness test
+of our NER systems. However we do not change the number
+of Chinese characters used. Now the main differences are as
+follows:
+
+e We construct a larger dictionary (8000 key-value pairs).
+
+e If the characters codepoint is a key in our dictionary, we
+look up its image and pass through our CNN as before.
+
+e If the codepoint is a non Chinese character and not a key,
+we then use the white image as before.
+
+--- Página 6 ---
+e If the codepoint is a Chinese character and not a key, then
+we use the black image as before.
+
+Over 200 trials with various hyperparameters, we found
+that adding the pictures of non-Chinese characters drop the
+FI scores but the models still beat the baseline model. In the
+tables 8, 9 we show a snippet of our results. The results in
+the Table 8 are compiled over 20 trials running for 30 epochs
+with the default hyperparameters as in Table 2.
+
+| Models Avg | Stddev | Max
+| GLYNN + dropout .5 ! 70.83 ! 1.18 | 73.61
+| GLYNN 70.7 1.55 | 73.25
+| strided 70.7 ! 1.6 73.81 |
+
+Table 8: Results on Weibo NAM with added pictures
+
+However the difference in performance between GLYNN
+(with .5 dropout) and strided is statistically insignificant as
+the p-value is .768.
+
+In the Table 9 below we show some our results on
+OntoNotes v5.0 compiled over 10 trials running for 30
+epochs with the default hyperparameters as in Table 2.
+
+Avg | Stddev | Max
+
+GLYNN + dropout .5 | 79.31 19 79.59
+GLYNN 79.27 04 79.33
+strided 78.95 .26 79.21
+
+Table 9: Results on OntoNotes v5.0 with added pictures
+
+We believe the reason for the diminished performance is
+due to the fact that the pictures of various extra characters do
+not have any semantic meaning unlike the Chinese charac-
+ters. So these pictures give a noisy signal to our NER system
+which in turn affects the performance.
+
+4.4 Hyperparameter tuning
+
+In this subsection we will discuss other hyperparameters we
+try out during our experiments.
+
+Effects of learning rates and optimizers : We used
+Adam optimizer on OntoNotes v5.0 for 5 trials with the
+learning rates .001, .0005 and .0001 with early stopping if
+the loss did not decrease over 5 epochs. We obtained an
+average Fl scores of 77.8, 76.64 and 77.72 respectively.
+But in general, we found Adam performs poorly compared
+to Adafactor.
+
+Early stopping with all the above learning rates with both
+Adam and Adafactor on Weibo produced erratic results with
+extremely high standard deviations.
+
+Effects of dropout : We also used dropouts of .5 on
+each the dropout layers of the Glynn CNN and ran multiple
+trials. Table 3 summarizes our results on OntoNotes v5.0
+after 10 trials and we also compute the p-value to test the
+difference in the average performance of GLYNN.
+
+Changing the dropouts to .5 did not have any statistically
+
+significant improvement over the default hyperparameters
+on OntoNotes v5.0 and ResumeNER.
+
+We also ran 20 trials on Weibo with this new dropout.
+The results are in Table 4. We did 2 sample t-test between
+GLYNN with .5 dropouts and the strided CNN (resp.
+GLYNN and GLYNN with .5 dropouts) and we found
+the p-value to be .84 (resp .83). So the two CNN (with
+or without higher dropout) behave pretty much the same.
+However on the dev set, we found that the higher dropouts
+tend to do better for Weibo.
+
+Effects on changing the training epochs : We also
+ran Weibo NAM on 20 and 40 epochs but running on 30
+epochs gives us the best results. Running Weibo NAM for
+20 epochs shows a drop in the FI scores of the LOC tags
+and thus results in a very poor performance. Losses tend
+to increase after 30 epochs and so the models start doing
+worse at 40 epochs. 30 is also an optimum choice for the
+full Weibo dataset and OntoNotes. We found that running
+ResumeNER for 20 epochs yield better results.
+
+Figure 5: GLYNN loss on OntoNotes on various epochs with
+optimizer Adafactor
+
+But we found that lowering the epoch number hurt the
+performance significantly. We also trained all our models
+with an early stopping if the loss did not decrease over 3
+and 5 epochs as well. That resulted in our models running
+on OntoNotes to stop around 12 and 18 epochs respectively.
+Figure 5 shows the relationship between training epochs and
+loss where the red is the training loss and the blue is the val-
+idation loss. Figure 6 shows the relation between training
+epochs of GLYNN and the test and dev FI scores on Weibo
+NAM and OntoNotes.
+
+How important is the autoencoder : We ran multiple tests
+(20 for Weibo NAM, 10 for OntoNotes v5.0) with varying
+learning rates and training epochs. We found the autoen-
+coder improved performance slightly and reduced variance
+on the dev and test sets. For example, GLYNN with default
+hyperparameters without the autoencoder got an average test
+score of 70.98(+1.47) on Weibo NAM.
+
+--- Página 7 ---
+Fl scores
+
+—@® Dev scores on Weibo
+
+-@ Dev scores on Onto Notes
+@ Test scores on Weibo
+
+—@ Test scores on Onto Notes
+
+0 10 20 30 40
+Training Epochs
+
+Figure 6: Training GLYNN on various epochs on Weibo
+NAM and OntoNotes v5.0
+
+5 Conclusion and Future Work
+
+Using two very different CNNs with and without an autoen-
+coder, we have shown gains over the baseline system on the
+three most commonly used datasets and achieve state of the
+art Fl score on the Weibo dataset. The novelty of our ap-
+proach lies in 3 salient features: a) very little data to aug-
+ment our system, b) it’s easier to train and implement and c)
+robust. Generating glyph images from text is also not a time
+consuming process and our models require less glyph data to
+train. Thus our hope is that using glyphs as an added feature
+will become a more commonplace occurrence for Chinese
+NER as it is an easy and quick method to improve the NER
+systems, We are excited by the future of glyphs in NLP and
+we would like use glyphs for other NLP tasks.
+
+6 Acknowledgements
+
+We would like to thank Johns Hopkins and the SCALE
+workshop for their hospitality and for facilitating an excel-
+lent atmosphere for conducting research. We would like to
+thank Nicholas Andrews for being an excellent mentor and
+for his continuous support and guidance. We also would like
+to thank Dawn Lawrie for her mentorship in this project.
+Finally, we thank Jim Mayfield for preparing the datasets,
+Derek Zhang for running various experiments, David Etter
+for the images of the characters, Oyesh Singh and David
+Mueller for answering our questions.
+
+References
+
+Ba, J. L.; Kiros, J. R.; and Hinton, G. E. 2016. Layer nor-
+malization. https://arxiv.org/abs/1607.06450. preprint.
+
+Che, W.; Wang, M.; Manning, C.; and Ting, L. 2013. Named
+entity recognition with bilingual constraints. In /n Proceed-
+ings of the 2013 Conference of the North American Chapter
+of the Association for Computational Linguistics: Human
+Language Technologies, 52-62. Atlanta, Georgia: Associ-
+ation for Computational Linguistics.
+
+Chiu, J. P., and Nichols, E. 2016. Named entity recognition
+
+with bidirectional LSTM-CNNs. Transactions of the Asso-
+ciation for Computational Linguistics 4:357-370.
+
+Collobert, R.; Weston, J.; Bottou, L.; Karlen, M.;
+Kavukcuoglu, K.; and Kuksa, P. 2011. Natural language
+processing (almost) from scratch. The Journal of Machine
+Learning Research 2493-2537.
+
+Dai, F. Z., and Cai, Z. 2017. Glyph-aware embedding of chi-
+nese characters. http://arxiv.org/abs/1709.00028. preprint.
+
+Devlin, J.; Chang, M.-W.; Lee, K.; and Toutanova, K. 2018.
+Bert: Pre-training of deep bidirectional transformers for
+language understanding. https://arxiv.org/abs/1810.04805.
+preprint.
+
+Gers, F. A.; Schmidhuber, J.; and Cummins, F, 2000. Learn-
+ing to forget: Continual prediction with LSTM. Neural
+Computation 12(10):2451-2471.
+
+Graves, A., and Schmidhuber, J. 2005. Framewise phoneme
+classification with bidirectional Istm and other neural net-
+work architectures. NEURAL NETWORKS 5-6.
+
+Hammerton, J. 2003. Named entity recognition with long
+short-term memory. In Proceedings of the Seventh Confer-
+ence on Natural Language Learning at HLT-NAACL 2003 -
+Volume 4, CONLL ’03, 172-175. Stroudsburg, PA, USA:
+Association for Computational Linguistics.
+
+He, H., and Xu, S. 2017. A unified model for cross-domain
+and semi-supervised named entity recognition in Chinese
+social media. In AAAI Conference on Artificial Intelligence.
+
+Hochreiter, S., and Schmidhuber, J. 1997. Long short-term
+memory. Neural Comput. 9(8):1735-1780.
+
+Huang, Z.; Xu, W.; and Yu, K. 2015. Bidirectional LSTM-
+CRF models for sequence tagging. CoRR abs/1508.01991.
+
+loffe, S., and Szegedy, C. 2015. Batch normalization: accel-
+erating deep network training by reducing internal covari-
+ate shift. In J]CML’15 Proceedings of the 32nd International
+Conference on International Conference on Machine Learn-
+ing, volume 37, 448-456.
+
+Li, Y.; Li, W.; Sun, F; and Li, S. 2015. Component-
+enhanced Chinese character embeddings. https://arXiv.org/
+abs/1508.06669. preprint.
+
+Liu, F.; Lu, H.; Lo, C.; and Neubig, G. 2017. Learning
+character-level compositionality with visual features. https:
+/arxiv.org/abs/1704.04859. preprint.
+
+Ma, X., and Hovy, E. 2016. End-to-end sequence labeling
+via bi-directional LSTM-CNNs-CRF. In Proceedings of the
+54th Annual Meeting of the Association for Computational
+Linguistics (Volume 1; Long Papers), 1064-1074. Berlin,
+Germany: Association for Computational Linguistics.
+Meng, Y.; Wu, W.; Wang, F;; Li, X.; Nie, P.; Yin, F.; Li, M.;
+Han, Q.; Sun, X.; and Li, J. 2019. Glyce: Glyph-vectors for
+chinese character representations. http://arxiv.org/abs/1901.
+10125v3. preprint.
+
+Nosirova, N.; Xu, M.; and Jiang, H. 2019. A multi-task
+learning approach for named entity recognition using local
+detection. https://arxiv.org/abs/1904.03300.
+
+Pappu, A.; Blanco, R.; Mehdad, Y.; Stent, A.; and Kapil, T.
+2017. Lightweight multilingual entity extraction and link-
+
+--- Página 8 ---
+ing. In In Proceedings of the Tenth ACM International Con-
+ference on Web Search and Data Mining, WSDM 17, 365-
+374. New York, NY, USA: Association for Computational
+Linguistics.
+
+Peng, N., and Dredze, M. 2015. Named entity recognition
+for Chinese social media with jointly trained embeddings. In
+Empirical Methods in Natural Language Processing, 548-
+554.
+
+Pradhan, S., and Ramshaw, L. 2017. Ontonotes: Large scale
+multi-layer, multi-lingual, distributed annotation. In Hand-
+book of Linguistic Annotation. Springer. 521-554.
+
+Pradhan, S.; Moschitti, A.; Xue, N.; Ng, H. T.; Bjorkelund,
+A.; Uryupina, O.; Zhang, Y.; and Zhong, Z. 2013. Towards
+robust linguistic analysis using ontonotes. In Proceedings of
+the Seventeenth Conference on Computational Natural Lan-
+guage Learning.
+
+Sang, E. FT. K., and Meulder, F. D. 2003. Introduction
+to the conll-2003 shared task: language-independent named
+entity recognition. In CONLL '03 Proceedings of the seventh
+conference on Natural language learning at HLT-NAACL
+2003, volume 4, 142-147,
+
+Shi, X.; Zhai, J.; Yang, X.; Xie, Z.; and Liu, C. 2015. Radi-
+cal embedding: Delving deeper to Chinese radicals. In Jn
+Proceedings of the 53rd Annual Meeting of the Associa-
+tion for Computational Linguistics and the 7th International
+Joint Conference on Natural Language Processing (Volume
+2: Short Papers), 594-598.
+
+Su, T.-R., and Lee, H.-Y. 2017. Learning Chinese word
+representations from glyphs of characters. http://arxiv.org/
+abs/1708.04755. preprint.
+
+Sun, Y.; Lin, L.; Yang, N.; Ji, Z.; and Wang, X. 2014.
+Radical-enhanced Chinese character embedding. In In In-
+ternational Conference on Neural Information Processing,
+279-286. Springer.
+
+Xu, M.; Jiang, H.; and Watcharawittayakul, S. 2017. A local
+detection approach for named entity recognition and men-
+tion detection. In In Proceedings of the 55th Annual Meeting
+of the Association for Computational Linguistics (Volume 1:
+Long Papers), 1237-1247. Vancouver, Canada: Association
+for Computational Linguistics.
+
+Zhang, X., and LeCun, Y. 2017. Which encoding is the
+best for text classification in Chinese, English, Japanese and
+Korean? https://arxiv.org/abs/1708.02657. preprint.
+
+Zhang, Y., and Yang, J. 2018. Chinese NER using lattice
+LSTM. In Proceedings of the 56th Annual Meeting of the
+Association for Computational Linguistics (Volume 1: Long
+Papers), 1554-1564. Melbourne, Australia: Association for
+Computational Linguistics.
+
+Zhou, Y.; Arpit, D.; Nwogu, I.; and Govindaraju, V. 2015.
+Is joint training better for deep auto-encoders? https://arxiv.
+org/abs/1405.1380. preprint.
+
+Zhu, Y., and Wang, G. 2019. CAN-NER: Convolutional At-
+tention Network for Chinese Named Entity Recognition. In
+Proceedings of the 2019 Conference of the North American
+Chapter of the Association for Computational Linguistics:
+Human Language Technologies, Volume 1 (Long and Short
+
+Papers), 3384-3393. Minneapolis, Minnesota: Association
+for Computational Linguistics.
+
